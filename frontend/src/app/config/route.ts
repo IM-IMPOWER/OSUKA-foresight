@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Priority 3: Fallback to localhost
-  console.log('[runtime-config] Using fallback: localhost:5055')
+  console.log('[runtime-config] Using fallback: http://localhost:5055')
   return NextResponse.json({
-    apiUrl: 'localhost:5055',
+    apiUrl: 'http://localhost:5055',
   })
 }

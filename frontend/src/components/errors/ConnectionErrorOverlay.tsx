@@ -85,7 +85,7 @@ export function ConnectionErrorOverlay({
                 <br />
                 # {t.connectionErrors.localDevLabel}:
                 <br />
-                API_URL=localhost:5055
+                API_URL=http://localhost:5055
               </code>
             </div>
           ) : (

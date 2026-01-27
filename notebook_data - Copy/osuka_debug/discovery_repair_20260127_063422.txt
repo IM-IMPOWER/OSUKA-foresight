@@ -1,0 +1,24 @@
+```json
+{
+    "products": [
+        {
+            "id": "1",
+            "name": "Laptop",
+            "price": 1200,
+            "description": "Powerful laptop for work and gaming"
+        },
+        {
+            "id": "2",
+            "name": "Mouse",
+            "price": 25,
+            "description": "Wireless optical mouse"
+        },
+        {
+            "id": "3",
+            "name": "Keyboard",
+            "price": 75,
+            "description": "Mechanical keyboard with RGB lighting"
+        }
+    ]
+}
+```

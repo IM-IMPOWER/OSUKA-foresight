@@ -1,0 +1,66 @@
+```json
+{
+  "products": [
+    {
+      "id": "1",
+      "name": "Laptop",
+      "price": 1200.00,
+      "description": "Powerful laptop for work and gaming."
+    },
+    {
+      "id": "2",
+      "name": "Mouse",
+      "price": 25.00,
+      "description": "Ergonomic wireless mouse."
+    },
+    {
+      "id": "3",
+      "name": "Keyboard",
+      "price": 75.00,
+      "description": "Mechanical keyboard with RGB lighting."
+    },
+    {
+      "id": "4",
+      "name": "Monitor",
+      "price": 300.00,
+      "description": "27-inch 4K monitor."
+    },
+    {
+      "id": "5",
+      "name": "Webcam",
+      "price": 50.00,
+      "description": "Full HD webcam for video calls."
+    },
+    {
+      "id": "6",
+      "name": "Headphones",
+      "price": 100.00,
+      "description": "Noise-cancelling over-ear headphones."
+    },
+    {
+      "id": "7",
+      "name": "Microphone",
+      "price": 70.00,
+      "description": "USB condenser microphone for streaming."
+    },
+    {
+      "id": "8",
+      "name": "Desk Lamp",
+      "price": 30.00,
+      "description": "Adjustable LED desk lamp."
+    },
+    {
+      "id": "9",
+      "name": "USB Hub",
+      "price": 20.00,
+      "description": "4-port USB 3.0 hub."
+    },
+    {
+      "id": "10",
+      "name": "External SSD",
+      "price": 150.00,
+      "description": "500GB portable external SSD."
+    }
+  ]
+}
+```

@@ -1,0 +1,62 @@
+PS C:\Projects\osuka-range-reasearch\open-notebook> docker compose -f docker-compose.dev.yml up -d --build
+[+] Running 1/1
+ ✔ surrealdb Pulled                                                        2.3s 
+[+] Building 12.5s (20/35)                                 docker:desktop-linux
+ => [open_notebook internal] load build definition from Dockerfile         0.0s
+ => => transferring dockerfile: 3.69kB                                     0.0s 
+ => [open_notebook internal] load metadata for ghcr.io/astral-sh/uv:lates  0.8s 
+ => [open_notebook internal] load metadata for docker.io/library/python:3  0.9s 
+ => [open_notebook internal] load .dockerignore                            0.0s
+ => => transferring context: 538B                                          0.0s 
+ => [open_notebook internal] load build context                            0.0s 
+ => => transferring context: 23.92kB                                       0.0s 
+ => [open_notebook] FROM ghcr.io/astral-sh/uv:latest@sha256:9a23023be68b2  0.0s 
+ => [open_notebook builder  1/15] FROM docker.io/library/python:3.12-slim  0.0s 
+ => CACHED [open_notebook builder  2/15] COPY --from=ghcr.io/astral-sh/uv  0.0s 
+ => CACHED [open_notebook builder  3/15] RUN apt-get update && apt-get in  0.0s 
+ => CACHED [open_notebook builder  4/15] WORKDIR /app                      0.0s 
+ => CACHED [open_notebook builder  5/15] COPY pyproject.toml uv.lock ./    0.0s 
+ => CACHED [open_notebook builder  6/15] COPY open_notebook/__init__.py .  0.0s 
+ => CACHED [open_notebook builder  7/15] RUN uv sync --frozen --no-dev     0.0s 
+ => CACHED [open_notebook builder  8/15] COPY . /app                       0.0s 
+ => CACHED [open_notebook builder  9/15] WORKDIR /app/frontend             0.0s 
+ => CACHED [open_notebook builder 10/15] COPY frontend/package.json front  0.0s 
+ => CACHED [open_notebook builder 11/15] RUN npm config set registry http  0.0s 
+ => CACHED [open_notebook builder 12/15] RUN npm ci                        0.0s 
+ => CACHED [open_notebook builder 13/15] COPY frontend/ ./                 0.0s 
+ => ERROR [open_notebook builder 14/15] RUN npm run build                 11.6s 
+------
+ > [open_notebook builder 14/15] RUN npm run build:
+0.265 
+0.265 > frontend@0.1.0 build
+0.265 > next build
+0.265 
+0.826 [Next.js Rewrites] Proxying /api/* to http://localhost:5055/api/*
+0.833 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+0.833 This information is used to shape Next.js' roadmap and prioritize features.
+0.833 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+0.833 https://nextjs.org/telemetry
+0.833
+0.842 ▲ Next.js 16.1.1 (Turbopack)
+0.842 - Experiments (use with caution):
+0.842   · proxyClientMaxBodySize: "100mb"
+0.842
+0.891 [Next.js Rewrites] Proxying /api/* to http://localhost:5055/api/*
+0.901   Creating an optimized production build ...
+6.092 ✓ Compiled successfully in 4.8s
+6.096   Running TypeScript ...
+11.48 Failed to compile.
+11.48
+11.48 ./src/lib/locales/zh-TW/index.ts:38:5
+11.48 Type error: An object literal cannot have multiple properties with the same name.
+11.48
+11.48   36 |     appName: "Open Notebook",
+11.48   37 |     required: "Required",
+11.48 > 38 |     required: "Required",
+11.48      |     ^
+11.48   39 |     add: "新增",
+11.48   40 |     remove: "移除",
+11.48   41 |     confirm: "確認",
+11.52 Next.js build worker exited with code: 1 and signal: null
+------
+failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1

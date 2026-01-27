@@ -1,0 +1,8 @@
+open_notebook-1  | 2026-01-27 04:28:48.574 | INFO     | open_notebook.osuka.pipeline:_log:138 - OSUKA: start discovery for category=cordless drills
+open_notebook-1  | 2026-01-27 04:28:48.574 | INFO     | api.routers.osuka:_log:44 - OSUKA: start discovery for category=cordless drills
+open_notebook-1  | 2026-01-27 04:28:48.574 | INFO     | open_notebook.osuka.pipeline:_log:138 - OSUKA: loaded 9 competitors
+open_notebook-1  | 2026-01-27 04:28:48.574 | INFO     | api.routers.osuka:_log:44 - OSUKA: loaded 9 competitors
+open_notebook-1  | 2026-01-27 04:28:48.574 | ERROR    | api.routers.osuka:_run_pipeline:58 - OSUKA pipeline failed: cannot access local variable 'market_label' where it is not associated with a value
+open_notebook-1  | INFO:     172.26.0.1:55492 - "POST /api/osuka/run HTTP/1.1" 200 OK
+open_notebook-1  | INFO:     172.26.0.1:55492 - "OPTIONS /api/osuka/run/c72d97dbaf784a8196af88cf494730f7 HTTP/1.1" 200 OK
+open_notebook-1  | INFO:     172.26.0.1:55492 - "GET /api/osuka/run/c72d97dbaf784a8196af88cf494730f7 HTTP/1.1" 200 OK

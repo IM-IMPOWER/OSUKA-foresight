@@ -1,0 +1,56 @@
+[
+  {
+    "brand_key": "makita",
+    "display_name": "Makita",
+    "aliases": ["Makita"],
+    "homepage": "https://www.makita.co.th/"
+  },
+  {
+    "brand_key": "bosch",
+    "display_name": "Bosch Professional",
+    "aliases": ["Bosch", "Bosch Professional", "Bosch Power Tools"],
+    "homepage": "https://th.bosch-pt.com/th/th/"
+  },
+  {
+    "brand_key": "dewalt",
+    "display_name": "DeWalt",
+    "aliases": ["DeWalt", "DeWALT"],
+    "homepage": "https://th.dewalt.global/"
+  },
+  {
+    "brand_key": "milwaukee",
+    "display_name": "Milwaukee",
+    "aliases": ["Milwaukee", "Milwaukee Tool"],
+    "homepage": "https://www.milwaukeetool.in.th/"
+  },
+  {
+    "brand_key": "hilti",
+    "display_name": "Hilti",
+    "aliases": ["Hilti"],
+    "homepage": "https://www.hilti.co.th/"
+  },
+  {
+    "brand_key": "metabo",
+    "display_name": "Metabo",
+    "aliases": ["Metabo"],
+    "homepage": "https://www.metabo.com/"
+  },
+  {
+    "brand_key": "festool",
+    "display_name": "Festool",
+    "aliases": ["Festool"],
+    "homepage": "https://www.festool.com/"
+  },
+  {
+    "brand_key": "hikoki",
+    "display_name": "HiKOKI",
+    "aliases": ["HiKOKI", "Hitachi", "Hitachi Power Tools"],
+    "homepage": "https://www.hikoki-powertools.com/"
+  },
+  {
+    "brand_key": "flex",
+    "display_name": "FLEX",
+    "aliases": ["FLEX", "Flex Tools"],
+    "homepage": "https://www.flex-tools.com/"
+  }
+]

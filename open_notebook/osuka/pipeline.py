@@ -8,6 +8,7 @@ from surreal_commands import execute_command_sync
 from open_notebook.domain.notebook import Notebook, Note, Source, ChatSession
 from open_notebook.database.repository import ensure_record_id
 from commands.source_commands import SourceProcessingInput
+from open_notebook.ai.models import DefaultModels, Model
 
 from .competitors import load_competitors
 from .discovery import discover_products
@@ -108,6 +109,21 @@ def _resolve_final_url(url: str, timeout_s: int = 10) -> str:
         return url
 
 
+async def _get_default_tools_model_name() -> Optional[str]:
+    try:
+        defaults = await DefaultModels.get_instance()
+        model_id = defaults.default_tools_model or defaults.default_chat_model
+        if not model_id:
+            return None
+        model = await Model.get(model_id)
+        if getattr(model, "provider", "") != "google":
+            return None
+        return str(model.name or "").strip() or None
+    except Exception as exc:
+        logger.warning(f"OSUKA: failed to resolve default tools model ({exc})")
+        return None
+
+
 def _build_context_text(sources: List[Source], max_chars_per_source: int = 4000) -> str:
     parts = []
     for source in sources:
@@ -181,12 +197,17 @@ async def run_osuka_pipeline(
     competitors = load_competitors(competitor_path)
     _log(f"OSUKA: loaded {len(competitors)} competitors")
     market_label = market.strip() or "Global"
+    model_name = await _get_default_tools_model_name()
+    if model_name:
+        _log(f"OSUKA: using tools model {model_name} for discovery")
+    else:
+        _log("OSUKA: using default discovery model")
     notebook = await _ensure_notebook(
         name=f"OSUKA {category}",
         description=f"OSUKA discovery for {category} ({market_label})",
     )
     _log(f"OSUKA: created notebook {notebook.id}")
-    batch_size = 3
+    batch_size = 10
     min_text_len = 300
     max_loops = max(5, max_total * 3)
     seen_urls: set[str] = set()
@@ -204,6 +225,7 @@ async def run_osuka_pipeline(
             allow_external_brands=allow_external_brands,
             preferred_brands=preferred_brands,
             prefer_pdfs=prefer_pdfs,
+            model_name=model_name,
             progress_cb=_log,
             debug_dir=None,
         )

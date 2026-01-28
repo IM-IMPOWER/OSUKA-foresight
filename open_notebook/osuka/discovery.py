@@ -108,6 +108,7 @@ def discover_products(
     preferred_brands: Optional[List[str]] = None,
     category_en: Optional[str] = None,
     prefer_pdfs: bool = False,
+    model_name: Optional[str] = None,
     progress_cb: Optional[Callable[[str], None]] = None,
     debug_dir: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -177,6 +178,7 @@ Output JSON ONLY:
 """.strip()
 
     client = genai.Client(api_key=_get_api_key())
+    model_name = (model_name or "gemini-2.5-flash").strip()
     response = None
     raw_text = ""
     max_attempts = 5
@@ -186,7 +188,7 @@ Output JSON ONLY:
                 f"Discovery: model request start (attempt {attempt + 1}/{max_attempts})"
             )
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=prompt,
             config={
                 "temperature": 0.2,
@@ -238,7 +240,7 @@ Do not add or remove products, only repair formatting.
 {raw_text}
 """.strip()
         repair_response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=repair_prompt,
             config={"temperature": 0.0},
         )

@@ -1,0 +1,138 @@
+# Anchor keywords for excerpting (minimize early/duplicate hits).
+# Strategy:
+# - PRIMARY = heading-like phrases (high precision)
+# - FALLBACK = broader terms (use only if PRIMARY finds nothing)
+
+OVERVIEW_KEYWORDS_PRIMARY = [
+    # English (overview / description headings)
+    "product overview",
+    "overview",
+    "product description",
+    "description",
+    "key features",
+    "features & benefits",
+    "features and benefits",
+    "highlights",
+    "product highlights",
+    "product details",
+    "details",
+    "benefits",
+    "introduction",
+    "about this product",
+    "product information",
+    "overview & features",
+]
+
+OVERVIEW_KEYWORDS_FALLBACK = [
+    # English (broader, more likely to appear in cards/nav)
+    "features",
+    "feature",
+    "about",
+    "summary",
+    "why choose",
+    "applications",
+    "application",
+    "ideal for",
+    "recommended for",
+    "use cases",
+    "what's included",
+    "whats included",
+    "in the box",
+    "box contents",
+    "package contents",
+
+    # Thai (overview / description headings)
+    "ภาพรวมสินค้า",
+    "ภาพรวมผลิตภัณฑ์",
+    "ภาพรวม",
+    "รายละเอียดสินค้า",
+    "รายละเอียดผลิตภัณฑ์",
+    "รายละเอียด",
+    "คำอธิบายสินค้า",
+    "คำอธิบายผลิตภัณฑ์",
+    "คำอธิบาย",
+    "จุดเด่นสินค้า",
+    "จุดเด่น",
+    "ไฮไลท์",
+    "คุณสมบัติเด่น",
+    "คุณสมบัติสินค้า",
+    "คุณสมบัติ",
+    "ข้อมูลเบื้องต้น",
+    "แนะนำสินค้า",
+    "แนะนำผลิตภัณฑ์",
+    "ข้อมูลผลิตภัณฑ์",
+    "ข้อมูลสินค้า",
+    "การใช้งาน",
+    "เหมาะสำหรับ",
+    "เหมาะกับงาน",
+    "อุปกรณ์ภายในกล่อง",
+    "อุปกรณ์ในกล่อง",
+    "ของในกล่อง",
+]
+
+SPEC_KEYWORDS_PRIMARY = [
+    # English (spec headings)
+    "technical specifications",
+    "specifications",
+    "product specifications",
+    "technical data",
+    "technical details",
+    "tech specs",
+    "datasheet",
+    "data sheet",
+    "spec sheet",
+    "specification sheet",
+
+    # Thai (spec headings)
+    "ข้อมูลจำเพาะ",
+    "ข้อมูลจำเพาะสินค้า",
+    "รายละเอียดทางเทคนิค",
+    "ข้อมูลทางเทคนิค",
+    "สเปคทางเทคนิค",
+    "สเปกทางเทคนิค",
+    "สเปคสินค้า",
+    "สเปกสินค้า",
+    "ตารางสเปค",
+    "ตารางสเปก",
+    "ตารางข้อมูลจำเพาะ",
+]
+
+SPEC_KEYWORDS_FALLBACK = [
+    # English (broader / noisier)
+    "specification",
+    "spec",
+    "specs",
+    "technical",
+    "product data",
+    "model number",
+    "part number",
+    "sku",
+    "dimensions",
+    "weight",
+    #"power",
+    "voltage",
+    "battery",
+    "motor",
+
+    # Thai (broader / noisier)
+    "สเปค",
+    "สเปก",
+    "ข้อมูลผลิตภัณฑ์ทางเทคนิค",
+    "คุณลักษณะทางเทคนิค",
+    "คุณสมบัติทางเทคนิค",
+    "รุ่น",
+    "รหัสรุ่น",
+    "รหัสสินค้า",
+    "ขนาด",
+    "มิติ",
+    "น้ำหนัก",
+    "กำลังไฟ",
+    "แรงดัน",
+    "แบตเตอรี่",
+    "มอเตอร์",
+]
+
+# Optional: if you want a single list like your original code expects,
+# keep PRIMARY first then FALLBACK second, so "first match" prefers good anchors.
+OVERVIEW_KEYWORDS = OVERVIEW_KEYWORDS_PRIMARY + OVERVIEW_KEYWORDS_FALLBACK
+SPEC_KEYWORDS = SPEC_KEYWORDS_PRIMARY + SPEC_KEYWORDS_FALLBACK

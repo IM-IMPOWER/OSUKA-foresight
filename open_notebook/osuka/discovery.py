@@ -179,9 +179,12 @@ Output JSON ONLY:
     client = genai.Client(api_key=_get_api_key())
     response = None
     raw_text = ""
-    for attempt in range(2):
+    max_attempts = 5
+    for attempt in range(max_attempts):
         if progress_cb:
-            progress_cb(f"Discovery: model request start (attempt {attempt + 1})")
+            progress_cb(
+                f"Discovery: model request start (attempt {attempt + 1}/{max_attempts})"
+            )
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
@@ -195,8 +198,8 @@ Output JSON ONLY:
         raw_text = getattr(response, "text", "") or ""
         if raw_text.strip():
             break
-        if progress_cb and attempt == 0:
-            progress_cb("Discovery: empty response text, retrying once")
+        if progress_cb and attempt < max_attempts - 1:
+            progress_cb("Discovery: empty response text, retrying")
     if progress_cb:
         progress_cb(f"Discovery: raw_text length={len(raw_text)}")
     debug_root = Path(debug_dir) if debug_dir else Path(DATA_FOLDER) / "osuka_debug"

@@ -1,4 +1,5 @@
 import asyncio
+import urllib.request
 from typing import Any, Dict, List, Optional, Callable
 
 from loguru import logger
@@ -89,6 +90,24 @@ async def _add_source_link(notebook_id: str, url: str) -> Optional[Source]:
     return processed
 
 
+def _url_is_ok(url: str, timeout_s: int = 10) -> bool:
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            return 200 <= getattr(resp, "status", 0) < 400
+    except Exception:
+        return False
+
+
+def _resolve_final_url(url: str, timeout_s: int = 10) -> str:
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            return getattr(resp, "url", "") or url
+    except Exception:
+        return url
+
+
 def _build_context_text(sources: List[Source], max_chars_per_source: int = 4000) -> str:
     parts = []
     for source in sources:
@@ -162,35 +181,59 @@ async def run_osuka_pipeline(
     competitors = load_competitors(competitor_path)
     _log(f"OSUKA: loaded {len(competitors)} competitors")
     market_label = market.strip() or "Global"
-    products = discover_products(
-        category=category,
-        market=market_label,
-        competitors=competitors,
-        max_total=max_total,
-        allow_external_brands=allow_external_brands,
-        preferred_brands=preferred_brands,
-        prefer_pdfs=prefer_pdfs,
-        progress_cb=_log,
-        debug_dir=None,
-    )
-    _log(f"OSUKA: discovery complete (products={len(products)})")
     notebook = await _ensure_notebook(
         name=f"OSUKA {category}",
         description=f"OSUKA discovery for {category} ({market_label})",
     )
     _log(f"OSUKA: created notebook {notebook.id}")
-
+    batch_size = 3
+    min_text_len = 300
+    max_loops = max(5, max_total * 3)
+    seen_urls: set[str] = set()
+    products: List[Dict[str, Any]] = []
     sources: List[Source] = []
-    for item in products:
-        url = item.get("url")
-        if not url:
-            continue
-        _log(f"OSUKA: adding source {url}")
-        processed = await _add_source_link(str(notebook.id), url)
-        if processed:
+    for loop_idx in range(1, max_loops + 1):
+        if len(sources) >= max_total:
+            break
+        _log(f"OSUKA: discovery batch {loop_idx}/{max_loops} (target={max_total})")
+        batch = discover_products(
+            category=category,
+            market=market_label,
+            competitors=competitors,
+            max_total=batch_size,
+            allow_external_brands=allow_external_brands,
+            preferred_brands=preferred_brands,
+            prefer_pdfs=prefer_pdfs,
+            progress_cb=_log,
+            debug_dir=None,
+        )
+        _log(f"OSUKA: batch returned {len(batch)} items")
+        for item in batch:
+            if len(sources) >= max_total:
+                break
+            url = str(item.get("url") or "").strip()
+            if not url:
+                continue
+            final_url = _resolve_final_url(url)
+            if final_url in seen_urls:
+                continue
+            seen_urls.add(final_url)
+            if not _url_is_ok(final_url):
+                _log(f"OSUKA: skipped (dead link) {url}")
+                continue
+            _log(f"OSUKA: adding source {final_url}")
+            processed = await _add_source_link(str(notebook.id), final_url)
+            if not processed:
+                _log(f"OSUKA: source failed {url}")
+                continue
+            text_len = len(processed.full_text or "")
+            if text_len < min_text_len:
+                _log(f"OSUKA: skipped (short text={text_len}) {url}")
+                continue
             sources.append(processed)
-        else:
-            _log(f"OSUKA: source failed {url}")
+            products.append(item)
+        _log(f"OSUKA: collected {len(sources)}/{max_total} sources")
+    _log(f"OSUKA: discovery complete (products={len(products)})")
 
     _log(f"OSUKA: sources added {len(sources)}")
     context_text = _build_context_text(sources)

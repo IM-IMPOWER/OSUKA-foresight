@@ -72,6 +72,7 @@ export const jaJP = {
     unknown: "不明",
     notes: "ノート",
     chat: "チャット",
+    marketSummary: "市場",
     details: "詳細",
     deleteForever: "完全に削除",
     connectionError: "接続エラー",

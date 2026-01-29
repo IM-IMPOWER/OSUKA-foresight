@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { NotebookHeader } from '../components/NotebookHeader'
 import { SourcesColumn } from '../components/SourcesColumn'
 import { NotesColumn } from '../components/NotesColumn'
+import { MarketSummaryColumn } from '../components/MarketSummaryColumn'
 import { ChatColumn } from '../components/ChatColumn'
 import { useNotebook } from '@/lib/hooks/use-notebooks'
 import { useNotebookSources } from '@/lib/hooks/use-sources'
@@ -16,7 +17,7 @@ import { useIsDesktop } from '@/lib/hooks/use-media-query'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, StickyNote, MessageSquare } from 'lucide-react'
+import { FileText, StickyNote, MessageSquare, BarChart3 } from 'lucide-react'
 
 export type ContextMode = 'off' | 'insights' | 'full'
 
@@ -44,13 +45,13 @@ export default function NotebookPage() {
   const { data: notes, isLoading: notesLoading } = useNotes(notebookId)
 
   // Get collapse states for dynamic layout
-  const { sourcesCollapsed, notesCollapsed } = useNotebookColumnsStore()
+  const { sourcesCollapsed, notesCollapsed, marketCollapsed } = useNotebookColumnsStore()
 
   // Detect desktop to avoid double-mounting ChatColumn
   const isDesktop = useIsDesktop()
 
   // Mobile tab state (Sources, Notes, or Chat)
-  const [mobileActiveTab, setMobileActiveTab] = useState<'sources' | 'notes' | 'chat'>('chat')
+  const [mobileActiveTab, setMobileActiveTab] = useState<'sources' | 'notes' | 'market' | 'chat'>('chat')
 
   // Context selection state
   const [contextSelections, setContextSelections] = useState<ContextSelections>({
@@ -134,7 +135,7 @@ export default function NotebookPage() {
             <>
               <div className="lg:hidden mb-4">
                 <Tabs value={mobileActiveTab} onValueChange={(value) => setMobileActiveTab(value as 'sources' | 'notes' | 'chat')}>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="sources" className="gap-2">
                       <FileText className="h-4 w-4" />
                       {t.navigation.sources}
@@ -142,6 +143,10 @@ export default function NotebookPage() {
                     <TabsTrigger value="notes" className="gap-2">
                       <StickyNote className="h-4 w-4" />
                       {t.common.notes}
+                    </TabsTrigger>
+                    <TabsTrigger value="market" className="gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      {t.common.marketSummary}
                     </TabsTrigger>
                     <TabsTrigger value="chat" className="gap-2">
                       <MessageSquare className="h-4 w-4" />
@@ -176,6 +181,12 @@ export default function NotebookPage() {
                     onContextModeChange={(noteId, mode) => handleContextModeChange(noteId, mode, 'note')}
                   />
                 )}
+                {mobileActiveTab === 'market' && (
+                  <MarketSummaryColumn
+                    notes={notes}
+                    isLoading={notesLoading}
+                  />
+                )}
                 {mobileActiveTab === 'chat' && (
                   <ChatColumn
                     notebookId={notebookId}
@@ -194,7 +205,7 @@ export default function NotebookPage() {
             {/* Sources Column */}
             <div className={cn(
               'transition-all duration-150',
-              sourcesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              sourcesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/4'
             )}>
               <SourcesColumn
                 sources={sources}
@@ -213,7 +224,7 @@ export default function NotebookPage() {
             {/* Notes Column */}
             <div className={cn(
               'transition-all duration-150',
-              notesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/3'
+              notesCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/4'
             )}>
               <NotesColumn
                 notes={notes}
@@ -221,6 +232,17 @@ export default function NotebookPage() {
                 notebookId={notebookId}
                 contextSelections={contextSelections.notes}
                 onContextModeChange={(noteId, mode) => handleContextModeChange(noteId, mode, 'note')}
+              />
+            </div>
+
+            {/* Market Summary Column */}
+            <div className={cn(
+              'transition-all duration-150',
+              marketCollapsed ? 'w-12 flex-shrink-0' : 'flex-none basis-1/4'
+            )}>
+              <MarketSummaryColumn
+                notes={notes}
+                isLoading={notesLoading}
               />
             </div>
 

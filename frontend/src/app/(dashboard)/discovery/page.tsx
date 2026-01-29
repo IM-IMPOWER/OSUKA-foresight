@@ -101,7 +101,6 @@ export default function OsukaPage() {
           allow_external_brands: allowExternal,
           prefer_pdfs: preferPdfs,
           max_total: Number.isFinite(maxTotalNumber) && maxTotalNumber > 0 ? maxTotalNumber : 10,
-          max_shopee_products: 10,
           preferred_brands: preferredList.length ? preferredList : undefined,
         })
       setRunId(response.run_id)

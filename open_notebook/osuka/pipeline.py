@@ -2,7 +2,8 @@ import asyncio
 import json
 import re
 import urllib.request
-from pathlib import Path
+import urllib.parse
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Callable, Tuple
 
 from loguru import logger
@@ -61,9 +62,7 @@ Convert the following Markdown table into STRICT JSON with this shape:
 Return ONLY JSON, no extra text.
 """.strip()
 
-from open_notebook.config import DATA_FOLDER
-
-SHOPEE_SAMPLE_PATH = Path(DATA_FOLDER) / "osuka_samples" / "response_1769613556125.json"
+SHOPEE_BASE_URL = "https://osuka-shopee-scraper-354583366921.asia-southeast1.run.app"
 
 
 async def _ensure_notebook(name: str, description: str) -> Notebook:
@@ -127,7 +126,7 @@ async def _get_default_tools_model_name() -> Optional[str]:
             return None
         return str(model.name or "").strip() or None
     except Exception as exc:
-        logger.warning(f"OSUKA: failed to resolve default tools model ({exc})")
+        logger.warning(f"DISCOVERY: failed to resolve default tools model ({exc})")
         return None
 
 
@@ -197,54 +196,74 @@ def _parse_price(value: str) -> Optional[float]:
 def _parse_sold(value: str) -> Optional[int]:
     if not value:
         return None
-    match = re.search(r"ขายแล้ว\s*([0-9.,]+)\s*([kKmM]?)", str(value))
+    text = str(value)
+    idx = text.find("ขายแล้ว")
+    if idx == -1:
+        return None
+    tail = text[idx:]
+    match = re.search(r"ขายแล้ว\s*([0-9.,]+)\s*([kKmM]|พัน|หมื่น|แสน|ล้าน)?\+?", tail)
     if not match:
         return None
     number = match.group(1).replace(",", "")
-    suffix = match.group(2).lower()
+    unit = (match.group(2) or "").lower()
     try:
         amount = float(number)
     except Exception:
         return None
-    if suffix == "k":
+    if unit == "k":
         amount *= 1000
-    elif suffix == "m":
+    elif unit == "m":
+        amount *= 1_000_000
+    elif unit == "พัน":
+        amount *= 1_000
+    elif unit == "หมื่น":
+        amount *= 10_000
+    elif unit == "แสน":
+        amount *= 100_000
+    elif unit == "ล้าน":
         amount *= 1_000_000
     return int(amount)
 
 
-def _load_shopee_sample() -> List[Dict[str, Any]]:
-    if not SHOPEE_SAMPLE_PATH.exists():
-        return []
-    data = json.loads(SHOPEE_SAMPLE_PATH.read_text(encoding="utf-8"))
-    if isinstance(data, dict) and isinstance(data.get("data"), list):
-        return data["data"]
-    if isinstance(data, list):
-        return data
-    return []
-
-
-async def _segment_category_ranges(
+async def _translate_category_to_thai(
     category: str,
     progress_cb: Optional[Callable[[str], None]] = None,
-) -> List[str]:
-    prompt = f"""
-Split the following product category into 2-5 meaningful ranges or subtypes.
-Return ONLY a JSON array of strings, no extra text.
-Category: {category}
+) -> str:
+    prompt = """
+Translate the following product category into Thai.
+Return ONLY the Thai text, no quotes, no extra text.
 """.strip()
     try:
         if progress_cb:
-            progress_cb("OSUKA: generating category ranges for Shopee search")
-        raw = await _run_prompt(prompt, category)
-        ranges = json.loads(raw)
-        if isinstance(ranges, list):
-            ranges = [str(item).strip() for item in ranges if str(item).strip()]
-            return ranges or [category]
+            progress_cb("DISCOVERY: translating category to Thai for Shopee")
+        translated = await _run_prompt(prompt, category)
+        translated = translated.strip()
+        return translated or category
     except Exception as exc:
         if progress_cb:
-            progress_cb(f"OSUKA: range segmentation failed ({exc})")
-    return [category]
+            progress_cb(f"DISCOVERY: Thai translation failed ({exc})")
+    return category
+
+
+def _fetch_shopee_results(category_th: str, timeout_s: int = 60) -> List[Dict[str, Any]]:
+    keyword = urllib.parse.quote(category_th.strip())
+    url = f"{SHOPEE_BASE_URL}/shopee_result/by_name/{keyword}"
+    req = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        raw = resp.read().decode("utf-8")
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        return []
+    items: List[Dict[str, Any]] = []
+    for entry in data:
+        result_raw = entry.get("result")
+        try:
+            result = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
+        except Exception:
+            continue
+        if isinstance(result, dict) and isinstance(result.get("data"), list):
+            items.extend(result["data"])
+    return items
 
 
 async def run_osuka_pipeline(
@@ -267,20 +286,22 @@ async def run_osuka_pipeline(
         if progress_cb:
             progress_cb(message)
 
-    _log(f"OSUKA: start discovery for category={category}")
+    _log(f"DISCOVERY: start discovery for category={category}")
     competitors = load_competitors(competitor_path)
-    _log(f"OSUKA: loaded {len(competitors)} competitors")
+    _log(f"DISCOVERY: loaded {len(competitors)} competitors")
     market_label = market.strip() or "Global"
     model_name = await _get_default_tools_model_name()
     if model_name:
-        _log(f"OSUKA: using tools model {model_name} for discovery")
+        _log(f"DISCOVERY: using tools model {model_name} for discovery")
     else:
-        _log("OSUKA: using default discovery model")
+        _log("DISCOVERY: using default discovery model")
+    bangkok_tz = timezone(timedelta(hours=7))
+    ts = datetime.now(bangkok_tz).strftime("%d/%m/%y %H:%M")
     notebook = await _ensure_notebook(
-        name=f"OSUKA {category}",
-        description=f"OSUKA discovery for {category} ({market_label})",
+        name=f"{ts} {category}",
+        description=f"Discovery for {category} ({market_label})",
     )
-    _log(f"OSUKA: created notebook {notebook.id}")
+    _log(f"DISCOVERY: created notebook {notebook.id}")
     batch_size = 10
     min_text_len = 300
     max_loops = max(5, max_total * 3)
@@ -290,7 +311,7 @@ async def run_osuka_pipeline(
     for loop_idx in range(1, max_loops + 1):
         if len(sources) >= max_total:
             break
-        _log(f"OSUKA: discovery batch {loop_idx}/{max_loops} (target={max_total})")
+        _log(f"DISCOVERY: discovery batch {loop_idx}/{max_loops} (target={max_total})")
         batch = discover_products(
             category=category,
             market=market_label,
@@ -303,7 +324,7 @@ async def run_osuka_pipeline(
             progress_cb=_log,
             debug_dir=None,
         )
-        _log(f"OSUKA: batch returned {len(batch)} items")
+        _log(f"DISCOVERY: batch returned {len(batch)} items")
         for item in batch:
             if len(sources) >= max_total:
                 break
@@ -315,27 +336,27 @@ async def run_osuka_pipeline(
                 continue
             seen_urls.add(final_url)
             if not _url_is_ok(final_url):
-                _log(f"OSUKA: skipped (dead link) {url}")
+                _log(f"DISCOVERY: skipped (dead link) {url}")
                 continue
-            _log(f"OSUKA: adding source {final_url}")
+            _log(f"DISCOVERY: adding source {final_url}")
             processed = await _add_source_link(str(notebook.id), final_url)
             if not processed:
-                _log(f"OSUKA: source failed {url}")
+                _log(f"DISCOVERY: source failed {url}")
                 continue
             text_len = len(processed.full_text or "")
             if text_len < min_text_len:
-                _log(f"OSUKA: skipped (short text={text_len}) {url}")
+                _log(f"DISCOVERY: skipped (short text={text_len}) {url}")
                 continue
             sources.append(processed)
             products.append(item)
-        _log(f"OSUKA: collected {len(sources)}/{max_total} sources")
-    _log(f"OSUKA: discovery complete (products={len(products)})")
+        _log(f"DISCOVERY: collected {len(sources)}/{max_total} sources")
+    _log(f"DISCOVERY: discovery complete (products={len(products)})")
 
-    _log(f"OSUKA: sources added {len(sources)}")
+    _log(f"DISCOVERY: sources added {len(sources)}")
     context_text = _build_context_text(sources)
-    _log("OSUKA: generating markdown table")
+    _log("DISCOVERY: generating markdown table")
     markdown_table = await _run_prompt(TABLE_MARKDOWN_PROMPT, context_text)
-    _log("OSUKA: generating JSON table")
+    _log("DISCOVERY: generating JSON table")
     json_table = await _run_prompt(TABLE_JSON_PROMPT, markdown_table)
 
     table_note = Note(title="Specs Table (Markdown)", content=markdown_table, note_type="ai")
@@ -345,95 +366,127 @@ async def run_osuka_pipeline(
     json_note = Note(title="Specs Table (JSON)", content=json_table, note_type="ai")
     await json_note.save()
     await json_note.add_to_notebook(str(notebook.id))
-    _log("OSUKA: notes saved")
+    _log("DISCOVERY: notes saved")
 
     shopee_summary_note_id = None
     shopee_data_note_id = None
     shopee_count = 0
-    if max_shopee_products and max_shopee_products > 0:
-        ranges = await _segment_category_ranges(category, progress_cb=_log)
-        per_range = max(1, int((max_shopee_products + len(ranges) - 1) / len(ranges)))
-        _log(
-            f"OSUKA: Shopee ranges = {', '.join(ranges)} (target per range={per_range})"
+    category_th = await _translate_category_to_thai(category, progress_cb=_log)
+    _log(f"DISCOVERY: Shopee keyword (TH) = {category_th}")
+    try:
+        sample_items = await asyncio.to_thread(_fetch_shopee_results, category_th)
+    except Exception as exc:
+        _log(f"DISCOVERY: Shopee fetch failed ({exc})")
+        sample_items = []
+    deduped: Dict[str, Dict[str, Any]] = {}
+    for item in sample_items:
+        key = str(item.get("link") or item.get("productId") or "").strip()
+        if not key:
+            continue
+        if key in deduped:
+            continue
+        deduped[key] = item
+    items = list(deduped.values())
+    shopee_count = len(items)
+
+    prices: List[Tuple[float, Dict[str, Any]]] = []
+    sold_counts: List[Tuple[int, Dict[str, Any]]] = []
+    gmv_total = 0.0
+    for item in items:
+        price_val = _parse_price(str(item.get("price") or ""))
+        if price_val is not None:
+            prices.append((price_val, item))
+        sold_val = _parse_sold(str(item.get("sold") or "")) or 0
+        sold_counts.append((sold_val, item))
+        if price_val is not None and sold_val:
+            gmv_total += price_val * sold_val
+
+    avg_price = (
+        sum(p for p, _ in prices) / len(prices) if prices else 0.0
+    )
+    total_sold = sum(s for s, _ in sold_counts) if sold_counts else 0
+    max_price_item = max(prices, key=lambda x: x[0])[1] if prices else {}
+    min_price_item = min(prices, key=lambda x: x[0])[1] if prices else {}
+    most_sold_item = max(sold_counts, key=lambda x: x[0])[1] if sold_counts else {}
+
+    def _sold_for_item(item: Dict[str, Any]) -> int:
+        return _parse_sold(str(item.get("sold") or "")) or 0
+
+    summary_lines = [
+        f"Market size GMV (THB): {gmv_total:,.2f}",
+        "",
+        f"Unique items: {shopee_count}",
+        f"Average price: {avg_price:.2f}" if prices else "Average price: N/A",
+        f"Total items sold: {total_sold:,}" if total_sold else "Total items sold: N/A",
+        "",
+    ]
+    if max_price_item:
+        summary_lines.extend(
+            [
+                f"Max price item: {max_price_item.get('name','')}",
+                f"Max price item price: {max_price_item.get('price','')}",
+                f"Max price item units sold: {_sold_for_item(max_price_item):,}"
+                if _sold_for_item(max_price_item)
+                else "Max price item units sold: N/A",
+                "",
+            ]
         )
-        sample_items = _load_shopee_sample()
-        deduped: Dict[str, Dict[str, Any]] = {}
-        for item in sample_items:
-            key = str(item.get("link") or item.get("productId") or "").strip()
-            if not key:
-                continue
-            if key in deduped:
-                continue
-            deduped[key] = item
-        items = list(deduped.values())[:max_shopee_products]
-        shopee_count = len(items)
-
-        prices: List[Tuple[float, Dict[str, Any]]] = []
-        sold_counts: List[Tuple[int, Dict[str, Any]]] = []
-        for item in items:
-            price_val = _parse_price(str(item.get("price") or ""))
-            if price_val is not None:
-                prices.append((price_val, item))
-            sold_val = _parse_sold(str(item.get("sold") or "")) or 0
-            sold_counts.append((sold_val, item))
-
-        avg_price = (
-            sum(p for p, _ in prices) / len(prices) if prices else 0.0
+    if min_price_item:
+        summary_lines.extend(
+            [
+                f"Min price item: {min_price_item.get('name','')}",
+                f"Min price item price: {min_price_item.get('price','')}",
+                f"Min price item units sold: {_sold_for_item(min_price_item):,}"
+                if _sold_for_item(min_price_item)
+                else "Min price item units sold: N/A",
+                "",
+            ]
         )
-        max_price_item = max(prices, key=lambda x: x[0])[1] if prices else {}
-        min_price_item = min(prices, key=lambda x: x[0])[1] if prices else {}
-        most_sold_item = max(sold_counts, key=lambda x: x[0])[1] if sold_counts else {}
-
-        summary_lines = [
-            f"Unique items: {shopee_count}",
-            f"Average price: {avg_price:.2f}" if prices else "Average price: N/A",
-        ]
-        if max_price_item:
-            summary_lines.append(
-                f"Max price item: {max_price_item.get('name','')} ({max_price_item.get('price','')})"
-            )
-        if min_price_item:
-            summary_lines.append(
-                f"Min price item: {min_price_item.get('name','')} ({min_price_item.get('price','')})"
-            )
-        if most_sold_item:
-            summary_lines.append(
-                f"Most sold item: {most_sold_item.get('name','')} ({most_sold_item.get('sold','')})"
-            )
-
-        summary_text = "\n".join(summary_lines)
-        summary_note = Note(
-            title="Shopee Summary",
-            content=summary_text,
-            note_type="ai",
+    if most_sold_item:
+        summary_lines.extend(
+            [
+                f"Most sold item: {most_sold_item.get('name','')}",
+                f"Most sold item price: {most_sold_item.get('price','')}",
+                f"Most sold item units sold: {_sold_for_item(most_sold_item):,}"
+                if _sold_for_item(most_sold_item)
+                else "Most sold item units sold: N/A",
+                "",
+            ]
         )
-        await summary_note.save()
-        await summary_note.add_to_notebook(str(notebook.id))
-        shopee_summary_note_id = str(summary_note.id)
 
-        condensed = []
-        for item in items:
-            condensed.append(
-                {
-                    "link": item.get("link", ""),
-                    "name": item.get("name", ""),
-                    "sold": _parse_sold(str(item.get("sold") or "")) or 0,
-                    "price": item.get("price", ""),
-                }
-            )
-        data_note = Note(
-            title="Shopee Products (JSON)",
-            content=json.dumps(condensed, ensure_ascii=False, indent=2),
-            note_type="ai",
+    summary_text = "\n".join(summary_lines)
+    summary_note = Note(
+        title="Shopee Summary",
+        content=summary_text,
+        note_type="ai",
+    )
+    await summary_note.save()
+    await summary_note.add_to_notebook(str(notebook.id))
+    shopee_summary_note_id = str(summary_note.id)
+
+    condensed = []
+    for item in items:
+        condensed.append(
+            {
+                "link": item.get("link", ""),
+                "name": item.get("name", ""),
+                "sold": _parse_sold(str(item.get("sold") or "")) or 0,
+                "price": item.get("price", ""),
+            }
         )
-        await data_note.save()
-        await data_note.add_to_notebook(str(notebook.id))
-        shopee_data_note_id = str(data_note.id)
-        _log(f"OSUKA: Shopee notes saved (items={shopee_count})")
+    data_note = Note(
+        title="Shopee Products (JSON)",
+        content=json.dumps(condensed, ensure_ascii=False, indent=2),
+        note_type="ai",
+    )
+    await data_note.save()
+    await data_note.add_to_notebook(str(notebook.id))
+    shopee_data_note_id = str(data_note.id)
+    _log(f"DISCOVERY: Shopee notes saved (items={shopee_count})")
 
     session = await _create_chat_session(str(notebook.id))
     _seed_chat_messages(str(session.id), TABLE_MARKDOWN_PROMPT, markdown_table)
-    _log(f"OSUKA: chat session seeded {session.id}")
+    _log(f"DISCOVERY: chat session seeded {session.id}")
 
     return {
         "notebook_id": str(notebook.id),

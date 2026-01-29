@@ -3,6 +3,7 @@ export const zhTW = {
     search: "搜尋...",
     chat: '聊天',
     notes: '筆記',
+    marketSummary: '市場',
     create: "新增",
     new: "新建",
     cancel: "取消",

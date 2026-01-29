@@ -72,6 +72,7 @@ export const enUS = {
     unknown: "Unknown",
     notes: "Notes",
     chat: "Chat",
+    marketSummary: "Market",
     details: "Details",
     deleteForever: "Delete Forever",
     connectionError: "Connection Error",

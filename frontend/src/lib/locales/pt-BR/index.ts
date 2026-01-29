@@ -72,6 +72,7 @@ export const ptBR = {
     unknown: "Desconhecido",
     notes: "Notas",
     chat: "Chat",
+    marketSummary: "Mercado",
     details: "Detalhes",
     deleteForever: "Excluir Permanentemente",
     connectionError: "Erro de Conexão",

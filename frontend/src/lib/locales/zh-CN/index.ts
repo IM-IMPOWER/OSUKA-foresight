@@ -3,6 +3,7 @@ export const zhCN = {
     search: "搜索...",
     chat: '聊天',
     notes: '笔记',
+    marketSummary: '市场',
     create: "新建",
     new: "新建",
     cancel: "取消",

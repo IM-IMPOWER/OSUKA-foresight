@@ -70,7 +70,7 @@ async def run_osuka(request: OsukaRunRequest):
     run_id = uuid4().hex
     RUN_STATE[run_id] = {
         "status": "running",
-        "logs": ["OSUKA: queued"],
+        "logs": ["DISCOVERY: queued"],
         "result": None,
         "error": None,
     }

@@ -16,6 +16,7 @@ class OsukaRunRequest(BaseModel):
     market: Optional[str] = Field(None, description="Market/region (optional)")
     allow_external_brands: bool = Field(True, description="Allow non-listed brands")
     max_total: int = Field(10, description="Max products to discover")
+    max_shopee_products: int = Field(10, description="Max Shopee products to fetch")
     prefer_pdfs: bool = Field(False, description="Prefer catalogue/manual PDFs")
     preferred_brands: Optional[List[str]] = Field(
         None,
@@ -49,6 +50,7 @@ async def _run_pipeline(run_id: str, request: OsukaRunRequest) -> None:
             market=request.market or "",
             allow_external_brands=request.allow_external_brands,
             max_total=request.max_total,
+            max_shopee_products=request.max_shopee_products,
             prefer_pdfs=request.prefer_pdfs,
             competitor_path=_default_competitor_path(),
             preferred_brands=request.preferred_brands,
@@ -62,7 +64,7 @@ async def _run_pipeline(run_id: str, request: OsukaRunRequest) -> None:
         RUN_STATE[run_id]["error"] = str(exc)
 
 
-@router.post("/osuka/run", response_model=OsukaRunStartResponse)
+@router.post("/discovery/run", response_model=OsukaRunStartResponse)
 async def run_osuka(request: OsukaRunRequest):
     """Run OSUKA discovery + Open Notebook table generation."""
     run_id = uuid4().hex
@@ -78,7 +80,7 @@ async def run_osuka(request: OsukaRunRequest):
     return OsukaRunStartResponse(run_id=run_id)
 
 
-@router.get("/osuka/run/{run_id}", response_model=OsukaRunStatusResponse)
+@router.get("/discovery/run/{run_id}", response_model=OsukaRunStatusResponse)
 async def get_osuka_status(run_id: str):
     if run_id not in RUN_STATE:
         raise HTTPException(status_code=404, detail="Run not found")

@@ -5,6 +5,7 @@ export type OsukaRunRequest = {
   market?: string
   allow_external_brands?: boolean
   max_total?: number
+  max_shopee_products?: number
   prefer_pdfs?: boolean
   preferred_brands?: string[]
 }
@@ -14,6 +15,9 @@ export type OsukaRunResponse = {
   sources_added: number
   table_note_id: string
   json_note_id: string
+  shopee_summary_note_id?: string | null
+  shopee_data_note_id?: string | null
+  shopee_count?: number
   chat_session_id?: string
   products: Array<{
     brand_key?: string
@@ -39,11 +43,11 @@ export type OsukaRunStatusResponse = {
 
 export const osukaApi = {
   run: async (data: OsukaRunRequest) => {
-    const response = await apiClient.post<OsukaRunStartResponse>('/osuka/run', data)
+    const response = await apiClient.post<OsukaRunStartResponse>('/discovery/run', data)
     return response.data
   },
   status: async (runId: string) => {
-    const response = await apiClient.get<OsukaRunStatusResponse>(`/osuka/run/${runId}`)
+    const response = await apiClient.get<OsukaRunStatusResponse>(`/discovery/run/${runId}`)
     return response.data
   },
 }

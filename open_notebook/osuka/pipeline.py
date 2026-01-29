@@ -1,6 +1,9 @@
 import asyncio
+import json
+import re
 import urllib.request
-from typing import Any, Dict, List, Optional, Callable
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Callable, Tuple
 
 from loguru import logger
 from surreal_commands import execute_command_sync
@@ -57,6 +60,10 @@ Convert the following Markdown table into STRICT JSON with this shape:
 }
 Return ONLY JSON, no extra text.
 """.strip()
+
+from open_notebook.config import DATA_FOLDER
+
+SHOPEE_SAMPLE_PATH = Path(DATA_FOLDER) / "osuka_samples" / "response_1769613556125.json"
 
 
 async def _ensure_notebook(name: str, description: str) -> Notebook:
@@ -174,12 +181,79 @@ def _seed_chat_messages(session_id: str, prompt: str, markdown_table: str) -> No
         logger.warning(f"Failed to seed chat session: {exc}")
 
 
+def _parse_price(value: str) -> Optional[float]:
+    if not value:
+        return None
+    text = re.sub(r"[^0-9.,]", "", str(value))
+    if not text:
+        return None
+    text = text.replace(",", "")
+    try:
+        return float(text)
+    except Exception:
+        return None
+
+
+def _parse_sold(value: str) -> Optional[int]:
+    if not value:
+        return None
+    match = re.search(r"ขายแล้ว\s*([0-9.,]+)\s*([kKmM]?)", str(value))
+    if not match:
+        return None
+    number = match.group(1).replace(",", "")
+    suffix = match.group(2).lower()
+    try:
+        amount = float(number)
+    except Exception:
+        return None
+    if suffix == "k":
+        amount *= 1000
+    elif suffix == "m":
+        amount *= 1_000_000
+    return int(amount)
+
+
+def _load_shopee_sample() -> List[Dict[str, Any]]:
+    if not SHOPEE_SAMPLE_PATH.exists():
+        return []
+    data = json.loads(SHOPEE_SAMPLE_PATH.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and isinstance(data.get("data"), list):
+        return data["data"]
+    if isinstance(data, list):
+        return data
+    return []
+
+
+async def _segment_category_ranges(
+    category: str,
+    progress_cb: Optional[Callable[[str], None]] = None,
+) -> List[str]:
+    prompt = f"""
+Split the following product category into 2-5 meaningful ranges or subtypes.
+Return ONLY a JSON array of strings, no extra text.
+Category: {category}
+""".strip()
+    try:
+        if progress_cb:
+            progress_cb("OSUKA: generating category ranges for Shopee search")
+        raw = await _run_prompt(prompt, category)
+        ranges = json.loads(raw)
+        if isinstance(ranges, list):
+            ranges = [str(item).strip() for item in ranges if str(item).strip()]
+            return ranges or [category]
+    except Exception as exc:
+        if progress_cb:
+            progress_cb(f"OSUKA: range segmentation failed ({exc})")
+    return [category]
+
+
 async def run_osuka_pipeline(
     *,
     category: str,
     market: str,
     allow_external_brands: bool,
     max_total: int,
+    max_shopee_products: int,
     competitor_path: str,
     preferred_brands: Optional[List[str]] = None,
     prefer_pdfs: bool = False,
@@ -273,6 +347,90 @@ async def run_osuka_pipeline(
     await json_note.add_to_notebook(str(notebook.id))
     _log("OSUKA: notes saved")
 
+    shopee_summary_note_id = None
+    shopee_data_note_id = None
+    shopee_count = 0
+    if max_shopee_products and max_shopee_products > 0:
+        ranges = await _segment_category_ranges(category, progress_cb=_log)
+        per_range = max(1, int((max_shopee_products + len(ranges) - 1) / len(ranges)))
+        _log(
+            f"OSUKA: Shopee ranges = {', '.join(ranges)} (target per range={per_range})"
+        )
+        sample_items = _load_shopee_sample()
+        deduped: Dict[str, Dict[str, Any]] = {}
+        for item in sample_items:
+            key = str(item.get("link") or item.get("productId") or "").strip()
+            if not key:
+                continue
+            if key in deduped:
+                continue
+            deduped[key] = item
+        items = list(deduped.values())[:max_shopee_products]
+        shopee_count = len(items)
+
+        prices: List[Tuple[float, Dict[str, Any]]] = []
+        sold_counts: List[Tuple[int, Dict[str, Any]]] = []
+        for item in items:
+            price_val = _parse_price(str(item.get("price") or ""))
+            if price_val is not None:
+                prices.append((price_val, item))
+            sold_val = _parse_sold(str(item.get("sold") or "")) or 0
+            sold_counts.append((sold_val, item))
+
+        avg_price = (
+            sum(p for p, _ in prices) / len(prices) if prices else 0.0
+        )
+        max_price_item = max(prices, key=lambda x: x[0])[1] if prices else {}
+        min_price_item = min(prices, key=lambda x: x[0])[1] if prices else {}
+        most_sold_item = max(sold_counts, key=lambda x: x[0])[1] if sold_counts else {}
+
+        summary_lines = [
+            f"Unique items: {shopee_count}",
+            f"Average price: {avg_price:.2f}" if prices else "Average price: N/A",
+        ]
+        if max_price_item:
+            summary_lines.append(
+                f"Max price item: {max_price_item.get('name','')} ({max_price_item.get('price','')})"
+            )
+        if min_price_item:
+            summary_lines.append(
+                f"Min price item: {min_price_item.get('name','')} ({min_price_item.get('price','')})"
+            )
+        if most_sold_item:
+            summary_lines.append(
+                f"Most sold item: {most_sold_item.get('name','')} ({most_sold_item.get('sold','')})"
+            )
+
+        summary_text = "\n".join(summary_lines)
+        summary_note = Note(
+            title="Shopee Summary",
+            content=summary_text,
+            note_type="ai",
+        )
+        await summary_note.save()
+        await summary_note.add_to_notebook(str(notebook.id))
+        shopee_summary_note_id = str(summary_note.id)
+
+        condensed = []
+        for item in items:
+            condensed.append(
+                {
+                    "link": item.get("link", ""),
+                    "name": item.get("name", ""),
+                    "sold": _parse_sold(str(item.get("sold") or "")) or 0,
+                    "price": item.get("price", ""),
+                }
+            )
+        data_note = Note(
+            title="Shopee Products (JSON)",
+            content=json.dumps(condensed, ensure_ascii=False, indent=2),
+            note_type="ai",
+        )
+        await data_note.save()
+        await data_note.add_to_notebook(str(notebook.id))
+        shopee_data_note_id = str(data_note.id)
+        _log(f"OSUKA: Shopee notes saved (items={shopee_count})")
+
     session = await _create_chat_session(str(notebook.id))
     _seed_chat_messages(str(session.id), TABLE_MARKDOWN_PROMPT, markdown_table)
     _log(f"OSUKA: chat session seeded {session.id}")
@@ -282,6 +440,9 @@ async def run_osuka_pipeline(
         "sources_added": len(sources),
         "table_note_id": str(table_note.id),
         "json_note_id": str(json_note.id),
+        "shopee_summary_note_id": shopee_summary_note_id,
+        "shopee_data_note_id": shopee_data_note_id,
+        "shopee_count": shopee_count,
         "chat_session_id": str(session.id),
         "products": products,
         "markdown_table": markdown_table,

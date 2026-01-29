@@ -55,7 +55,7 @@ const getNavigation = (t: TranslationKeys) => [
     items: [
       { name: t.navigation.notebooks, href: '/notebooks', icon: Book },
       { name: t.navigation.askAndSearch, href: '/search', icon: Search },
-      { name: t.navigation.osuka, href: '/osuka', icon: Command },
+      { name: t.navigation.osuka, href: '/discovery', icon: Command },
     ],
   },
   {

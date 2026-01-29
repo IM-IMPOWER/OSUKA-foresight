@@ -95,14 +95,15 @@ export default function OsukaPage() {
 
     try {
       setLocalLogs((prev) => [...prev, t.osuka.logsRequestSent])
-      const response = await osukaApi.run({
-        category: category.trim(),
-        market: market.trim() || undefined,
-        allow_external_brands: allowExternal,
-        prefer_pdfs: preferPdfs,
-        max_total: Number.isFinite(maxTotalNumber) && maxTotalNumber > 0 ? maxTotalNumber : 10,
-        preferred_brands: preferredList.length ? preferredList : undefined,
-      })
+        const response = await osukaApi.run({
+          category: category.trim(),
+          market: market.trim() || undefined,
+          allow_external_brands: allowExternal,
+          prefer_pdfs: preferPdfs,
+          max_total: Number.isFinite(maxTotalNumber) && maxTotalNumber > 0 ? maxTotalNumber : 10,
+          max_shopee_products: 10,
+          preferred_brands: preferredList.length ? preferredList : undefined,
+        })
       setRunId(response.run_id)
       setLocalLogs((prev) => [...prev, t.osuka.logsResponseReceived])
       toast.success(t.common.success)

@@ -138,6 +138,35 @@ export function useCreateSource() {
   })
 }
 
+export function useCreateYoutubeSource() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: (data: { url: string; notebookId: string }) =>
+      sourcesApi.createYoutube({ url: data.url, notebook_id: data.notebookId }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.sources(variables.notebookId),
+        refetchType: 'active'
+      })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sources(), refetchType: 'active' })
+      toast({
+        title: t.common.success,
+        description: t.sources.youtubeAddedSuccess,
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: t.common.error,
+        description: t(getApiErrorKey(error, t.sources.failedToAddSource)),
+        variant: 'destructive',
+      })
+    },
+  })
+}
+
 export function useUpdateSource() {
   const queryClient = useQueryClient()
   const { toast } = useToast()

@@ -100,6 +100,11 @@ export const sourcesApi = {
     return response.data
   },
 
+  createYoutube: async (data: { url: string; notebook_id: string }) => {
+    const response = await apiClient.post<SourceResponse>('/sources/youtube', data)
+    return response.data
+  },
+
   downloadFile: async (id: string): Promise<AxiosResponse<Blob>> => {
     return apiClient.get(`/sources/${id}/download`, {
       responseType: 'blob',

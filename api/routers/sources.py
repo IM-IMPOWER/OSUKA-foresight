@@ -1,4 +1,6 @@
 import os
+import re
+from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -11,6 +13,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, Response
 from loguru import logger
 from surreal_commands import execute_command_sync
@@ -30,10 +33,79 @@ from commands.source_commands import SourceProcessingInput
 from open_notebook.config import UPLOADS_FOLDER
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import Notebook, Source
+from open_notebook.domain.notebook import Asset
 from open_notebook.domain.transformation import Transformation
 from open_notebook.exceptions import InvalidInputError
 
 router = APIRouter()
+
+
+class YouTubeSourceRequest(BaseModel):
+    url: str
+    notebook_id: Optional[str] = None
+    notebooks: Optional[List[str]] = None
+    embed: Optional[bool] = True
+    async_processing: Optional[bool] = True
+
+
+def _extract_youtube_id(url: str) -> Optional[str]:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+
+    host = (parsed.netloc or "").lower()
+    if host.endswith("youtu.be"):
+        video_id = parsed.path.lstrip("/").split("/")[0]
+        return video_id or None
+
+    if "youtube.com" in host:
+        if parsed.path == "/watch":
+            qs = parse_qs(parsed.query)
+            return (qs.get("v") or [None])[0]
+        if parsed.path.startswith("/shorts/"):
+            return parsed.path.split("/shorts/")[1].split("/")[0] or None
+        if parsed.path.startswith("/embed/"):
+            return parsed.path.split("/embed/")[1].split("/")[0] or None
+        if parsed.path.startswith("/live/"):
+            return parsed.path.split("/live/")[1].split("/")[0] or None
+    return None
+
+
+def _is_youtube_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    return "youtube.com" in host or host.endswith("youtu.be")
+
+
+def _build_transcript_text(payload: dict[str, Any]) -> str:
+    transcripts = payload.get("transcripts") or []
+    lines: List[str] = []
+    def _format_ts(seconds: float) -> str:
+        total = int(round(seconds))
+        hours = total // 3600
+        minutes = (total % 3600) // 60
+        secs = total % 60
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes:02d}:{secs:02d}"
+
+    for item in transcripts:
+        data = item or {}
+        text = data.get("text")
+        start = data.get("start")
+        if text:
+            if start is not None:
+                try:
+                    lines.append(f"[{_format_ts(float(start))}] {text}")
+                except Exception:
+                    lines.append(f"[{start}] {text}")
+            else:
+                lines.append(str(text))
+    return "\n".join(lines).strip()
 
 
 def generate_unique_filename(original_filename: str, upload_folder: str) -> str:
@@ -541,6 +613,84 @@ async def create_source(
             except Exception:
                 pass
         raise HTTPException(status_code=500, detail=f"Error creating source: {str(e)}")
+
+
+@router.post("/sources/youtube", response_model=SourceResponse)
+async def create_youtube_source(request: YouTubeSourceRequest):
+    """Create a new source from a YouTube transcript."""
+    try:
+        if not _is_youtube_url(request.url):
+            raise HTTPException(status_code=400, detail="URL must be a YouTube link")
+
+        video_id = _extract_youtube_id(request.url)
+        if not video_id:
+            raise HTTPException(status_code=400, detail="Unable to extract YouTube video ID")
+
+        notebook_ids = request.notebooks or ([] if not request.notebook_id else [request.notebook_id])
+        if not notebook_ids:
+            raise HTTPException(status_code=400, detail="Notebook ID is required")
+
+        for notebook_id in notebook_ids:
+            notebook = await Notebook.get(notebook_id)
+            if not notebook:
+                raise HTTPException(status_code=404, detail=f"Notebook {notebook_id} not found")
+
+        api_key = os.getenv("SEARCH_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="SEARCH_API_KEY is not configured")
+
+        params = {
+            "engine": "youtube_transcripts",
+            "video_id": video_id,
+            "api_key": api_key,
+            "only_available": "true",
+        }
+
+        import requests
+
+        response = requests.get("https://www.searchapi.io/api/v1/search", params=params, timeout=30)
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Search API error: {response.status_code}",
+            )
+
+        payload = response.json()
+        transcript_text = _build_transcript_text(payload)
+        if not transcript_text:
+            raise HTTPException(status_code=404, detail="Transcript not available")
+
+        topics = ["youtube", f"video_id:{video_id}"]
+        title = f"YouTube Transcript: {video_id}"
+
+        source = Source(
+            title=title,
+            topics=topics,
+            full_text=transcript_text,
+            asset=Asset(url=request.url),
+        )
+        await source.save()
+
+        for notebook_id in notebook_ids:
+            await source.add_to_notebook(notebook_id)
+
+        embedded_chunks = await source.get_embedded_chunks()
+        return SourceResponse(
+            id=source.id or "",
+            title=source.title,
+            topics=source.topics or [],
+            asset=AssetModel(file_path=None, url=request.url),
+            full_text=source.full_text,
+            embedded=embedded_chunks > 0,
+            embedded_chunks=embedded_chunks,
+            created=str(source.created),
+            updated=str(source.updated),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating YouTube source: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating YouTube source: {str(e)}")
 
 
 @router.post("/sources/json", response_model=SourceResponse)

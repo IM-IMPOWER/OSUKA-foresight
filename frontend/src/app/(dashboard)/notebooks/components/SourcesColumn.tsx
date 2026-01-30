@@ -10,11 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, FileText, Link2, ChevronDown, Loader2 } from 'lucide-react'
+import { Plus, FileText, Link2, ChevronDown, Loader2, Video } from 'lucide-react'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { AddSourceDialog } from '@/components/sources/AddSourceDialog'
 import { AddExistingSourceDialog } from '@/components/sources/AddExistingSourceDialog'
+import { AddYoutubeSourceDialog } from '@/components/sources/AddYoutubeSourceDialog'
 import { SourceCard } from '@/components/sources/SourceCard'
 import { useDeleteSource, useRetrySource, useRemoveSourceFromNotebook } from '@/lib/hooks/use-sources'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -53,6 +54,7 @@ export function SourcesColumn({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addExistingDialogOpen, setAddExistingDialogOpen] = useState(false)
+  const [addYoutubeDialogOpen, setAddYoutubeDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sourceToDelete, setSourceToDelete] = useState<string | null>(null)
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
@@ -171,6 +173,10 @@ export function SourcesColumn({
                       <Plus className="h-4 w-4 mr-2" />
                       {t.sources.addSource}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setDropdownOpen(false); setAddYoutubeDialogOpen(true); }}>
+                      <Video className="h-4 w-4 mr-2" />
+                      {t.sources.addYoutube}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => { setDropdownOpen(false); setAddExistingDialogOpen(true); }}>
                       <Link2 className="h-4 w-4 mr-2" />
                       {t.sources.addExistingTitle}
@@ -235,6 +241,12 @@ export function SourcesColumn({
         onOpenChange={setAddExistingDialogOpen}
         notebookId={notebookId}
         onSuccess={onRefresh}
+      />
+
+      <AddYoutubeSourceDialog
+        open={addYoutubeDialogOpen}
+        onOpenChange={setAddYoutubeDialogOpen}
+        notebookId={notebookId}
       />
 
       <ConfirmDialog
